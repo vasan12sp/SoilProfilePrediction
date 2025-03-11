@@ -4,7 +4,6 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 from scipy.ndimage import gaussian_filter1d
-import matplotlib.pyplot as plt
 
 # Load TFLite Models
 @st.cache_resource
@@ -103,6 +102,9 @@ def predict_soil(image):
 st.title("🌱 Soil Type & Density Detection")
 st.write("Upload a soil profile image to analyze its soil type and density.")
 
+st.warning("**Note:** The input image is assumed to contain no shadows or foreign objects, as these may affect the model’s accuracy. The predictions for soil type and density are approximate and should not be considered as precise scientific measurements.")
+
+
 # Upload image
 uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
 image = None
@@ -112,16 +114,21 @@ if uploaded_file:
     image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    st.image(image, caption="Original Image", use_column_width=True)
-
     if st.button("Predict"):
-        st.subheader("Segmenting Soil Layers...")
+        st.subheader("Segmentation Results")
+
+        # Segment the image
         segmented_boundaries = segment_image(image)
         segmented_image = draw_segmentation_lines(image, segmented_boundaries)
-        
-        # Show the segmented image with red lines
-        st.image(segmented_image, caption="Segmented Image", use_column_width=True)
 
+        # Show original and segmented images side by side
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(image, caption="Original Image", use_container_width=True)
+        with col2:
+            st.image(segmented_image, caption="Segmented Image", use_container_width=True)
+
+        # Extract segments based on detected boundaries
         segments = []
         height = image.shape[0]
         segment_starts = [0] + segmented_boundaries + [height]
@@ -136,7 +143,6 @@ if uploaded_file:
             gamma_corrected = apply_gamma_correction(segment)
             soil_type, soil_density = predict_soil(gamma_corrected)
 
-            st.image(segment, caption=f"Segment {idx + 1}", use_column_width=True)
+            st.image(segment, caption=f"Segment {idx + 1}", use_container_width=True)
             st.write(f"✅ *Segment {idx + 1} - Soil Type:* {soil_type}")
             st.write(f"📏 *Segment {idx + 1} - Soil Density:* {soil_density:.2f} g/cm³")
-
