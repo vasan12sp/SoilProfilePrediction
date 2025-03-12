@@ -88,7 +88,7 @@ def run_tflite_model(interpreter, image):
 def is_soil_image(image):
     image = preprocess_image(image)
     prediction = run_tflite_model(check_soil_interpreter, image)
-    return prediction[0][0] > 0.5  # Assuming the model outputs probability, threshold at 0.5
+    return prediction[0][0] > 0.65  # Assuming the model outputs probability, threshold at 0.5
 
 # Function to predict soil type and density
 def predict_soil(image):
