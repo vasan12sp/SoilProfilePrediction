@@ -8,16 +8,18 @@ from scipy.ndimage import gaussian_filter1d
 # Load TFLite Models
 @st.cache_resource
 def load_tflite_models():
+    check_soil_interpreter = tf.lite.Interpreter(model_path="check_soil_model.tflite")
     soil_type_interpreter = tf.lite.Interpreter(model_path="soil_type_model.tflite")
     soil_density_interpreter = tf.lite.Interpreter(model_path="soil_density_model.tflite")
     
     # Allocate tensors
+    check_soil_interpreter.allocate_tensors()
     soil_type_interpreter.allocate_tensors()
     soil_density_interpreter.allocate_tensors()
     
-    return soil_type_interpreter, soil_density_interpreter
+    return check_soil_interpreter, soil_type_interpreter, soil_density_interpreter
 
-soil_type_interpreter, soil_density_interpreter = load_tflite_models()
+check_soil_interpreter, soil_type_interpreter, soil_density_interpreter = load_tflite_models()
 
 # Function to resize and normalize the image
 def preprocess_image(image):
@@ -82,7 +84,13 @@ def run_tflite_model(interpreter, image):
     output_data = interpreter.get_tensor(output_details[0]['index'])
     return output_data
 
-# Function to predict soil type and density using TFLite models
+# Function to check if the image is a soil profile
+def is_soil_image(image):
+    image = preprocess_image(image)
+    prediction = run_tflite_model(check_soil_interpreter, image)
+    return prediction[0][0] > 0.5  # Assuming the model outputs probability, threshold at 0.5
+
+# Function to predict soil type and density
 def predict_soil(image):
     image = preprocess_image(image)
     
@@ -104,7 +112,6 @@ st.write("Upload a soil profile image to analyze its soil type and density.")
 
 st.warning("**Note:** The input image is assumed to contain no shadows or foreign objects, as these may affect the model’s accuracy. The predictions for soil type and density are approximate and should not be considered as precise scientific measurements.")
 
-
 # Upload image
 uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
 image = None
@@ -113,36 +120,40 @@ if uploaded_file:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    
-    if st.button("Predict"):
-        st.subheader("Segmentation Results")
 
-        # Segment the image
-        segmented_boundaries = segment_image(image)
-        segmented_image = draw_segmentation_lines(image, segmented_boundaries)
+    # Check if the image is a soil profile
+    if is_soil_image(image):
+        if st.button("Predict"):
+            st.subheader("Segmentation Results")
 
-        # Show original and segmented images side by side
-        col1, col2 = st.columns(2)
-        with col1:
-            st.image(image, caption="Original Image", use_container_width=True)
-        with col2:
-            st.image(segmented_image, caption="Segmented Image", use_container_width=True)
+            # Segment the image
+            segmented_boundaries = segment_image(image)
+            segmented_image = draw_segmentation_lines(image, segmented_boundaries)
 
-        # Extract segments based on detected boundaries
-        segments = []
-        height = image.shape[0]
-        segment_starts = [0] + segmented_boundaries + [height]
+            # Show original and segmented images side by side
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(image, caption="Original Image", use_container_width=True)
+            with col2:
+                st.image(segmented_image, caption="Segmented Image", use_container_width=True)
 
-        for i in range(len(segment_starts) - 1):
-            y_start = segment_starts[i]
-            y_end = segment_starts[i + 1]
-            segments.append(image[y_start:y_end, :])
+            # Extract segments based on detected boundaries
+            segments = []
+            height = image.shape[0]
+            segment_starts = [0] + segmented_boundaries + [height]
 
-        st.subheader("📌 Segment Predictions")
-        for idx, segment in enumerate(segments):
-            gamma_corrected = apply_gamma_correction(segment)
-            soil_type, soil_density = predict_soil(gamma_corrected)
+            for i in range(len(segment_starts) - 1):
+                y_start = segment_starts[i]
+                y_end = segment_starts[i + 1]
+                segments.append(image[y_start:y_end, :])
 
-            st.image(segment, caption=f"Segment {idx + 1}", use_container_width=True)
-            st.write(f"✅ *Segment {idx + 1} - Soil Type:* {soil_type}")
-            st.write(f"📏 *Segment {idx + 1} - Soil Density:* {soil_density:.2f} g/cm³")
+            st.subheader("📌 Segment Predictions")
+            for idx, segment in enumerate(segments):
+                gamma_corrected = apply_gamma_correction(segment)
+                soil_type, soil_density = predict_soil(gamma_corrected)
+
+                st.image(segment, caption=f"Segment {idx + 1}", use_container_width=True)
+                st.write(f"✅ *Segment {idx + 1} - Soil Type:* {soil_type}")
+                st.write(f"📏 *Segment {idx + 1} - Soil Density:* {soil_density:.2f} g/cm³")
+    else:
+        st.error("🚨 The uploaded image is **not a soil profile**. Please upload a valid soil profile image.")
