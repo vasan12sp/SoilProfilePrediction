@@ -17,9 +17,9 @@ def load_tflite_models():
     soil_type_interpreter.allocate_tensors()
     soil_density_interpreter.allocate_tensors()
     
-    return check_soil_interpreter, soil_type_interpreter, soil_density_interpreter
+    return (check_soil_interpreter, soil_type_interpreter, soil_density_interpreter)
 
-check_soil_interpreter, soil_type_interpreter, soil_density_interpreter = load_tflite_models()
+(check_soil_interpreter, soil_type_interpreter, soil_density_interpreter) = load_tflite_models()
 
 # Function to resize and normalize the image
 def preprocess_image(image):
