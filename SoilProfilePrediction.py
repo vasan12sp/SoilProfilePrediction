@@ -105,29 +105,23 @@ if uploaded_file:
 
     if is_soil_image(image):
         if st.button("Predict"):
-            st.subheader("Segmentation Results")
+            st.subheader("Segmentation & Merging Results")
 
+            # Step 1: Initial segmentation
             boundaries = segment_image(image)
-            segmented_image = draw_segmentation_lines(image, boundaries)
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.image(image, caption="Original Image", use_container_width=True)
-            with col2:
-                st.image(segmented_image, caption="Segmented Image", use_container_width=True)
-
-            # Split into segments based on boundaries
+            # Step 2: Split into segments
             segment_starts = [0] + boundaries + [image.shape[0]]
             segments = [image[segment_starts[i]:segment_starts[i+1], :] for i in range(len(segment_starts) - 1)]
 
-            # Predict soil types for each segment
+            # Step 3: Predict soil types for each segment
             initial_predictions = []
             for seg in segments:
                 gamma_corrected = apply_gamma_correction(seg)
                 soil_type, _ = predict_soil(gamma_corrected)
                 initial_predictions.append(soil_type)
 
-            # Merge consecutive segments with the same soil type
+            # Step 4: Merge consecutive segments with the same soil type
             merged_segments = []
             merged_boundaries = []
             current_segment = segments[0]
@@ -136,19 +130,27 @@ if uploaded_file:
 
             for i in range(1, len(segments)):
                 if initial_predictions[i] == current_soil_type:
-                    # Merge segment vertically
                     current_segment = np.vstack((current_segment, segments[i]))
                 else:
-                    # Save current merged segment
                     merged_segments.append(current_segment)
-                    merged_boundaries.append(segment_starts[i])
+                    merged_boundaries.append(segment_starts[i])  # boundary before new segment
                     current_segment = segments[i]
                     current_soil_type = initial_predictions[i]
                     current_start = segment_starts[i]
 
-            # Append last segment
             merged_segments.append(current_segment)
 
+            # Step 5: Draw segmentation lines after merging
+            segmented_image_after_merge = draw_segmentation_lines(image, merged_boundaries)
+
+            # Step 6: Display original and merged segmented image
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(image, caption="Original Image", use_container_width=True)
+            with col2:
+                st.image(segmented_image_after_merge, caption="Segmented Image After Merging", use_container_width=True)
+
+            # Step 7: Show merged segment predictions
             st.subheader("📌 Merged Segment Predictions")
 
             for idx, segment in enumerate(merged_segments):
