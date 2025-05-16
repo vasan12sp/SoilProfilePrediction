@@ -42,7 +42,7 @@ def segment_image(image, smoothing_sigma=2, gradient_threshold=0.7):
     height, width = gray.shape
 
     # 1. Dynamic slice height
-    slice_height = max(20, height // 40)
+    slice_height = max(50, height // 40)
     num_slices = height // slice_height
 
     # 2. Compute mean intensity profile
