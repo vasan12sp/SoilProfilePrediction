@@ -36,21 +36,29 @@ def apply_gamma_correction(image, gamma=1.4):
     return cv2.LUT(image, table)
 
 # Function to segment image into soil layers
-def segment_image(image, slice_height=50, smoothing_sigma=2):
+
+def segment_image(image, smoothing_sigma=2, gradient_threshold=0.7):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     height, width = gray.shape
+
+    # 1. Dynamic slice height
+    slice_height = max(20, height // 40)
     num_slices = height // slice_height
 
-    mean_intensity = np.array([np.mean(gray[i * slice_height:(i + 1) * slice_height, :]) for i in range(num_slices)])
+    # 2. Compute mean intensity profile
+    mean_intensity = np.array([
+        np.mean(gray[i * slice_height:(i + 1) * slice_height, :]) for i in range(num_slices)
+    ])
     smooth_intensity = gaussian_filter1d(mean_intensity, sigma=smoothing_sigma)
-    centerline = np.mean(smooth_intensity)
 
-    crossing_points = []
-    for i in range(1, len(smooth_intensity)):
-        if (smooth_intensity[i - 1] < centerline and smooth_intensity[i] > centerline) or \
-           (smooth_intensity[i - 1] > centerline and smooth_intensity[i] < centerline):
-            crossing_points.append(i * slice_height)
+    # 3. Compute derivative of smoothed intensity
+    gradient = np.gradient(smooth_intensity)
+    peak_indices = np.where(np.abs(gradient) > gradient_threshold)[0]
 
+    # 4. Convert to pixel coordinates
+    crossing_points = [i * slice_height for i in peak_indices]
+
+    # 5. Filter out close boundaries
     min_layer_gap = 80
     filtered_boundaries = []
     prev_y = -min_layer_gap
@@ -61,6 +69,7 @@ def segment_image(image, slice_height=50, smoothing_sigma=2):
             prev_y = y
 
     return filtered_boundaries
+
 
 # Function to overlay segmentation lines
 def draw_segmentation_lines(image, boundaries):
