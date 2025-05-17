@@ -11,11 +11,11 @@ def load_tflite_models():
     check_soil_interpreter = tf.lite.Interpreter(model_path="check_soil_model.tflite")
     soil_type_interpreter = tf.lite.Interpreter(model_path="soil_type_model.tflite")
     soil_density_interpreter = tf.lite.Interpreter(model_path="soil_density_model.tflite")
-    
+
     check_soil_interpreter.allocate_tensors()
     soil_type_interpreter.allocate_tensors()
     soil_density_interpreter.allocate_tensors()
-    
+
     return (check_soil_interpreter, soil_type_interpreter, soil_density_interpreter)
 
 (check_soil_interpreter, soil_type_interpreter, soil_density_interpreter) = load_tflite_models()
@@ -80,7 +80,7 @@ def is_soil_image(image):
 
 def predict_soil(image):
     image = preprocess_image(image)
-    
+
     soil_type_pred = run_tflite_model(soil_type_interpreter, image)
     soil_types = ["Alluvial soil", "Black soil", "Clay soil", "Red soil"]
     predicted_class = np.argmax(soil_type_pred)
@@ -91,6 +91,7 @@ def predict_soil(image):
 
     return predicted_soil_name, predicted_density
 
+# Streamlit UI
 st.title("🌱 Soil Type & Density Detection")
 st.write("Upload a soil profile image to analyze its soil type and density.")
 st.warning("**Note:** Input images should be clear and free from shadows or foreign objects.")
@@ -114,29 +115,34 @@ if uploaded_file:
             segment_starts = [0] + boundaries + [image.shape[0]]
             segments = [image[segment_starts[i]:segment_starts[i+1], :] for i in range(len(segment_starts) - 1)]
 
-            # Step 3: Predict soil types for each segment
+            # Step 3: Predict both soil types and densities for each segment
             initial_predictions = []
             for seg in segments:
                 gamma_corrected = apply_gamma_correction(seg)
-                soil_type, _ = predict_soil(gamma_corrected)
-                initial_predictions.append(soil_type)
+                soil_type, soil_density = predict_soil(gamma_corrected)
+                initial_predictions.append((soil_type, soil_density))
 
-            # Step 4: Merge consecutive segments with the same soil type
+            # Step 4: Merge consecutive segments if type is same and density difference is small
             merged_segments = []
             merged_boundaries = []
             current_segment = segments[0]
-            current_soil_type = initial_predictions[0]
+            current_soil_type, current_density = initial_predictions[0]
             current_start = segment_starts[0]
 
+            density_threshold = 0.2  # you can fine-tune this
+
             for i in range(1, len(segments)):
-                if initial_predictions[i] == current_soil_type:
+                next_soil_type, next_density = initial_predictions[i]
+                density_diff = abs(next_density - current_density)
+
+                if next_soil_type == current_soil_type and density_diff <= density_threshold:
                     current_segment = np.vstack((current_segment, segments[i]))
                 else:
                     merged_segments.append(current_segment)
-                    merged_boundaries.append(segment_starts[i])  # boundary before new segment
+                    merged_boundaries.append(segment_starts[i])
                     current_segment = segments[i]
-                    current_soil_type = initial_predictions[i]
-                    current_start = segment_starts[i]
+                    current_soil_type = next_soil_type
+                    current_density = next_density
 
             merged_segments.append(current_segment)
 
@@ -152,7 +158,6 @@ if uploaded_file:
 
             # Step 7: Show merged segment predictions
             st.subheader("📌 Segment Predictions")
-
             for idx, segment in enumerate(merged_segments):
                 gamma_corrected = apply_gamma_correction(segment)
                 soil_type, soil_density = predict_soil(gamma_corrected)
