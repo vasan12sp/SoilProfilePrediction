@@ -105,7 +105,7 @@ if uploaded_file:
 
     if is_soil_image(image):
         if st.button("Predict"):
-            st.subheader("Segmentation & Merging Results")
+            st.subheader("Segmentation Results")
 
             # Step 1: Initial segmentation
             boundaries = segment_image(image)
@@ -148,16 +148,16 @@ if uploaded_file:
             with col1:
                 st.image(image, caption="Original Image", use_container_width=True)
             with col2:
-                st.image(segmented_image_after_merge, caption="Segmented Image After Merging", use_container_width=True)
+                st.image(segmented_image_after_merge, caption="Segmented Image", use_container_width=True)
 
             # Step 7: Show merged segment predictions
-            st.subheader("📌 Merged Segment Predictions")
+            st.subheader("📌 Segment Predictions")
 
             for idx, segment in enumerate(merged_segments):
                 gamma_corrected = apply_gamma_correction(segment)
                 soil_type, soil_density = predict_soil(gamma_corrected)
 
-                st.image(segment, caption=f"Merged Segment {idx + 1}", use_container_width=True)
+                st.image(segment, caption=f"Segment {idx + 1}", use_container_width=True)
                 st.write(f"✅ *Segment {idx + 1} - Soil Type:* {soil_type}")
                 st.write(f"📏 *Segment {idx + 1} - Soil Density:* {soil_density:.2f} g/cm³")
     else:
